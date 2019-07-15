@@ -1,5 +1,5 @@
 const { fromEvent } = rxjs;
-const { map, mergeMap, debounceTime, filter, distinctUntilChanged, tap } = rxjs.operators;
+const { map, switchMap, debounceTime, distinctUntilChanged, tap, partition, retry, finalize} = rxjs.operators; //catchError
 const { ajax } = rxjs.ajax;
 
 const $layer = document.getElementById("suggestLayer");
@@ -24,34 +24,42 @@ function drawLayer(items) {
     .join("");
 }
 
+
+
 const keyup$ = fromEvent(document.getElementById("search"), "keyup").pipe(
     debounceTime(300),
     map(event => event.target.value),
     distinctUntilChanged()
 );
 
-const user$ = keyup$.pipe(
-    filter(query => {
-        console.log("user$");
-        return query.trim().length > 0;
-    }),
+let [user$, reset$] = keyup$
+.pipe(
+    partition(query => query.trim().length > 0)
+);
+
+user$ = user$.pipe(
     tap(showLoading),
-    mergeMap(query => {
+    switchMap(query => {
         return ajax.getJSON(`https://api.github.com/search/users?q=${query}`);
     }),
-    tap(hideLoading)
+    tap(hideLoading),
+    retry(2),
+    // finalize(hideLoading)
+    // catchError((e, orgObservable) => {
+    //     console.log("서버 에러가 발생하였으나 다시 호출하도록 처리", e.message);
+    //     return orgObservable;
+    // })
 );
 
-const reset$ = keyup$.pipe(
-    filter(query => {
-        console.log("reset$");
-        return query.trim().length === 0;
-    }),
-    tap(v => ($layer.innerHTML = ""))
-);
+reset$
+    .pipe(
+        tap(v => ($layer.innerHTML = ""))
+    ).subscribe();
 
-reset$.subscribe();
-
-user$.subscribe(v => {
-    drawLayer(v.items);
+user$.subscribe({
+    next: v => drawLayer(v.items),
+    error: e => {
+        console.error(e);
+        alert(e.message);
+    }
 });
