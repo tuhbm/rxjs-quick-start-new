@@ -1,6 +1,6 @@
-const { fromEvent } = rxjs;
-const { map, switchMap, debounceTime, distinctUntilChanged, tap, partition, retry, finalize} = rxjs.operators; //catchError
-const { ajax } = rxjs.ajax;
+const {fromEvent} = rxjs;
+const {map, switchMap, debounceTime, distinctUntilChanged, tap, partition, retry, finalize} = rxjs.operators; //catchError
+const {ajax} = rxjs.ajax;
 
 const $layer = document.getElementById("suggestLayer");
 const $loading = document.getElementById("loading");
@@ -15,27 +15,27 @@ function hideLoading() {
 
 function drawLayer(items) {
     $layer.innerHTML = items
-    .map(user => {
-        return `<li class="user">
+        .map(user => {
+            return `<li class="user">
         <img src="${user.avatar_url}" width="50px" width="50px"/>
         <p><a href="${user.html_url}" target="_blank">${user.login}</a></p>
       </li>`;
-    })
-    .join("");
+        })
+        .join("");
 }
-
 
 
 const keyup$ = fromEvent(document.getElementById("search"), "keyup").pipe(
     debounceTime(300),
     map(event => event.target.value),
-    distinctUntilChanged()
+    distinctUntilChanged(),
+    tap(v => console.log("from keyup$", v))
 );
 
 let [user$, reset$] = keyup$
-.pipe(
-    partition(query => query.trim().length > 0)
-);
+    .pipe(
+        partition(query => query.trim().length > 0)
+    );
 
 user$ = user$.pipe(
     tap(showLoading),
@@ -49,11 +49,14 @@ user$ = user$.pipe(
     //     console.log("서버 에러가 발생하였으나 다시 호출하도록 처리", e.message);
     //     return orgObservable;
     // })
+    finalize(hideLoading),
+    tap(v => console.log("from user$", v))
 );
 
 reset$
     .pipe(
-        tap(v => ($layer.innerHTML = ""))
+        tap(v => ($layer.innerHTML = "")),
+        tap(v => console.log("from reset$", v))
     ).subscribe();
 
 user$.subscribe({
