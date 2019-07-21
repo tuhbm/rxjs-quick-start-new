@@ -1,5 +1,5 @@
-const {fromEvent} = rxjs;
-const {map, switchMap, debounceTime, distinctUntilChanged, tap, partition, retry, finalize} = rxjs.operators; //catchError
+const {fromEvent, Subject, Observable } = rxjs;
+const {map, switchMap, debounceTime, share, distinctUntilChanged, tap, partition, retry, finalize} = rxjs.operators; //catchError, multicast, publish, refCount
 const {ajax} = rxjs.ajax;
 
 const $layer = document.getElementById("suggestLayer");
@@ -25,12 +25,17 @@ function drawLayer(items) {
 }
 
 
-const keyup$ = fromEvent(document.getElementById("search"), "keyup").pipe(
-    debounceTime(300),
-    map(event => event.target.value),
-    distinctUntilChanged(),
-    tap(v => console.log("from keyup$", v))
-);
+const keyup$ = fromEvent(document.getElementById("search"), "keyup")
+    .pipe(
+        debounceTime(300),
+        map(event => event.target.value),
+        distinctUntilChanged(),
+        tap(v => console.log("from keyup$", v)),
+        // multicast(new Subject())
+        // publish(),
+        // refCount()
+        share()
+    );
 
 let [user$, reset$] = keyup$
     .pipe(
@@ -66,3 +71,9 @@ user$.subscribe({
         alert(e.message);
     }
 });
+
+reset$.subscribe();
+
+// subject에서 user$와 reset$를 생성 후, subject가 keyup$을 구
+
+// keyup$.connect();
