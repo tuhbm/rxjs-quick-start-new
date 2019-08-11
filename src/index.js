@@ -1,8 +1,5 @@
 const $canvas = document.getElementById('draw');
 const ctx = $canvas.getContext('2d');
-$canvas.width = window.innerWidth;
-$canvas.height = window.innerHeight/1.5;
-
 const $color = document.getElementById('color');
 const $size = document.getElementById('size');
 const EVENTS = {
@@ -13,23 +10,25 @@ const EVENTS = {
 const { fromEvent, merge } = rxjs;
 const { map, switchMap, takeUntil, mergeAll, take, first, startWith, withLatestFrom, tap, share, scan } = rxjs.operators;
 
+$canvas.width = window.innerWidth/1.5;
+$canvas.height = window.innerHeight/1.5;
+$canvas.style.border = '1px solid #000';
+
 function toPos(obs$) {
     return obs$
         .pipe(
-            tap(event => console.log(event)),
-            map(v => v.pageX)
+            map(v => v),
+            // tap(event => console.log(event))
         );
 }
 
-function drawLine(event, startPosition, endPosition) {
-    console.log('startPosition', startPosition);
-    console.log('endPosition', endPosition);
+function drawLine(startPosition, endPosition) {
     ctx.beginPath();
     ctx.moveTo(startPosition, endPosition);
-    ctx.lineTo(event.offsetX, event.offsetY);
+    ctx.lineTo(startPosition, endPosition);
     ctx.stroke();
 
-    [lastX, lastY] = [event.offsetX, event.offsetY];
+    [lastX, lastY] = [startPosition, endPosition];
 }
 
 const start$ = fromEvent($canvas, EVENTS.start).pipe(toPos);
@@ -46,8 +45,8 @@ const drag$ = start$
     .pipe(
         switchMap(start => {
             return move$.pipe(
-                map(move => move - start),
-                tap(event => console.log('event', event)),
+                tap(move => console.log(move)),
+                map(event => [event.pageX, event.pageY]),
                 takeUntil(end$)
             )
         }),
@@ -56,7 +55,8 @@ const drag$ = start$
          * drag$이 두번씩 호출됨 => share 오퍼레이터 사용
          * */
         share(),
-        map(distance => ({distance}))
+        tap(distance => console.log(distance)),
+        mergeAll(position => position)
     );
 
 const drop$ = drag$
@@ -89,21 +89,19 @@ const drop$ = drag$
 
 const drawTool$ = merge(drag$, drop$)
     .pipe(
-        scan((store, {distance, size}) => {
+        scan((store, distance) => {
+            console.log(distance);
             const updateStore = {
-                from: -(store.index * store.size) + distance
+                from: distance[0]
             };
+            console.log(updateStore);
 
             if(size === undefined) {
                 updateStore.to = updateStore.from
             } else {
-                let tobeIndex = store.index;
-
-                updateStore.index = tobeIndex;
-                updateStore.to = -(tobeIndex * size);
+                updateStore.to = distance[1];
                 updateStore.size = size;
             }
-            console.log(ctx);
             ctx.strokeStyle = $color.value;
             ctx.lineJoin = 'round';
             ctx.lineCap = 'round';
@@ -111,14 +109,11 @@ const drawTool$ = merge(drag$, drop$)
             return {...store, ...updateStore};
         }, {
             from: 0,
-            to: 0,
-            index: 0,
-            size: 0
+            to: 0
         })
     );
 
 drawTool$.subscribe(store => {
-    console.log('캐러셀 데이터', this);
-
-    drawLine(this, store.from, store.to)
+    console.log('캐러셀 데이터', store);
+    drawLine(store.from, store.to)
 });
