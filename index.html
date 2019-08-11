@@ -1,12 +1,25 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <title>Parcel Sandbox</title>
+    <title>그림판</title>
     <meta charset="UTF-8" />
     <script src="./node_modules/rxjs/bundles/rxjs.umd.js"></script>
 </head>
 <body>
-
+<div>
+<select name="color" id="color">
+    <option value="black">black</option>
+    <option value="red">red</option>
+    <option value="blue">blue</option>
+    <option value="green">green</option>
+</select>
+<select name="size" id="size">
+    <option value="10">10</option>
+    <option value="20">20</option>
+    <option value="30">30</option>
+</select>
+</div>
+<canvas id="draw" width="800" height="800"></canvas>
 <script src="src/index.js"></script>
 
 </body>
