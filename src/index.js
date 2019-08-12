@@ -2,6 +2,7 @@ const $canvas = document.getElementById('draw');
 const ctx = $canvas.getContext('2d');
 const $color = document.getElementById('color');
 const $size = document.getElementById('size');
+const $clear = document.getElementById('clear');
 const EVENTS = {
     start: 'mousedown',
     move: 'mousemove',
@@ -13,6 +14,7 @@ const { map, switchMap, takeUntil, mergeAll, take, first, startWith, withLatestF
 $canvas.width = window.innerWidth/1.5;
 $canvas.height = window.innerHeight/1.5;
 $canvas.style.border = '1px solid #000';
+$canvas.style.cursor = 'crosshair';
 
 function toPos(obs$) {
     return obs$
@@ -22,13 +24,14 @@ function toPos(obs$) {
         );
 }
 
-function drawLine(startPosition, endPosition) {
+function drawLine(position, updatePositon) {
+    const {positionX, positionY} = position;
     ctx.beginPath();
-    ctx.moveTo(startPosition, endPosition);
-    ctx.lineTo(startPosition, endPosition);
+    ctx.moveTo(positionX, positionY);
+    ctx.lineTo(positionX, positionY);
     ctx.stroke();
 
-    [lastX, lastY] = [startPosition, endPosition];
+    // [lastX, lastY] = [positionX, positionY];
 }
 
 const start$ = fromEvent($canvas, EVENTS.start).pipe(toPos);
@@ -39,14 +42,15 @@ const size$ = fromEvent(window, 'resize')
         startWith(0),
         map(event => $canvas.clientWidth)
     );
+const clear$ = fromEvent($clear, 'click');
 
 // end$.subscribe(e => console.log('end$', e));
 const drag$ = start$
     .pipe(
         switchMap(start => {
             return move$.pipe(
-                tap(move => console.log(move)),
-                map(event => [event.pageX, event.pageY]),
+                // tap(move => console.log(move)),
+                map(event => [event.layerX, event.layerY]),
                 takeUntil(end$)
             )
         }),
@@ -55,7 +59,6 @@ const drag$ = start$
          * drag$이 두번씩 호출됨 => share 오퍼레이터 사용
          * */
         share(),
-        tap(distance => console.log(distance)),
         mergeAll(position => position)
     );
 
@@ -82,38 +85,35 @@ const drop$ = drag$
                 first()
             )
         }),
-        withLatestFrom(size$, (drag, size) => {
-            return {...drag, size}
+        withLatestFrom(size$, (drag) => {
+            return {...drag}
         })
     );
 
 const drawTool$ = merge(drag$, drop$)
     .pipe(
         scan((store, distance) => {
-            console.log(distance);
             const updateStore = {
-                from: distance[0]
+                positionX: distance[0],
+                positionY : distance[1]
             };
-            console.log(updateStore);
-
-            if(size === undefined) {
-                updateStore.to = updateStore.from
-            } else {
-                updateStore.to = distance[1];
-                updateStore.size = size;
-            }
+            
             ctx.strokeStyle = $color.value;
             ctx.lineJoin = 'round';
-            ctx.lineCap = 'round';
+            ctx.lineCap = 'square';
             ctx.lineWidth = $size.value;
             return {...store, ...updateStore};
         }, {
-            from: 0,
-            to: 0
+            positionX: 0,
+            positionY: 0
         })
     );
 
 drawTool$.subscribe(store => {
-    console.log('캐러셀 데이터', store);
-    drawLine(store.from, store.to)
+    // console.log('캐러셀 데이터', store);
+    drawLine({positionX: store.positionX, positionY: store.positionY})
+});
+
+clear$.subscribe( event => {
+    $canvas.getContext("2d").clearRect(0, 0, window.innerWidth/1.5,window.innerHeight/1.5)
 });
