@@ -36,7 +36,7 @@ function drawLine(position) {
 const start$ = fromEvent($canvas, EVENTS.start);
 const move$ = fromEvent($canvas, EVENTS.move);
 const end$ = fromEvent($canvas, EVENTS.end);
-const color$ = fromEvent($color);
+// const color$ = fromEvent($color);
 // const size$ = fromEvent(window, 'resize')
 //     .pipe(
 //         startWith(0),
