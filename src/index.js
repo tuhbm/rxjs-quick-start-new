@@ -26,8 +26,7 @@ function toPos(obs$) {
 
 function drawLine(position, updatePositon) {
     const {positionX, positionY} = position;
-    ctx.beginPath();
-    ctx.moveTo(positionX, positionY);
+    
     ctx.lineTo(positionX, positionY);
     ctx.stroke();
 
@@ -86,31 +85,32 @@ const drop$ = drag$
             )
         }),
         withLatestFrom(size$, (drag) => {
-            return {...drag}
+            return drag
         })
     );
 
 const drawTool$ = merge(drag$, drop$)
     .pipe(
-        scan((store, distance) => {
+        map((store) => {
             const updateStore = {
-                positionX: distance[0],
-                positionY : distance[1]
+                positionX: store[0],
+                positionY : store[1]
             };
-            
+            console.log('updateStore', updateStore);
             ctx.strokeStyle = $color.value;
+            ctx.lineWidth = $size.value;
             ctx.lineJoin = 'round';
             ctx.lineCap = 'square';
-            ctx.lineWidth = $size.value;
-            return {...store, ...updateStore};
-        }, {
-            positionX: 0,
-            positionY: 0
+            
+            return updateStore;
         })
     );
 
 drawTool$.subscribe(store => {
     // console.log('캐러셀 데이터', store);
+    ctx.beginPath();
+    ctx.moveTo(store.positionX, store.positionY);
+    // console.log('store', store);
     drawLine({positionX: store.positionX, positionY: store.positionY})
 });
 
