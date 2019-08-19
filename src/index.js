@@ -6,7 +6,8 @@ const $clear = document.getElementById('clear');
 const EVENTS = {
     start: 'mousedown',
     move: 'mousemove',
-    end: 'mouseup'
+    end: 'mouseup',
+    leave: 'mouseout'
 };
 const { fromEvent, merge } = rxjs;
 const { map, switchMap, takeUntil, mergeAll, take, first, startWith, withLatestFrom, tap, share, scan } = rxjs.operators;
@@ -36,6 +37,12 @@ function drawLine(position) {
 const start$ = fromEvent($canvas, EVENTS.start);
 const move$ = fromEvent($canvas, EVENTS.move);
 const end$ = fromEvent($canvas, EVENTS.end);
+const leave$ = fromEvent($canvas, EVENTS.leave);
+const color$ = fromEvent($color, EVENTS.start);
+const size$ = fromEvent($size, EVENTS.start);
+
+// const color = color$.subscribe(color => color.target.value);
+// const size = size$.subscribe(size => size.target.value);
 // const color$ = fromEvent($color);
 // const size$ = fromEvent(window, 'resize')
 //     .pipe(
@@ -49,8 +56,17 @@ const drag$ = start$
     .pipe(
         switchMap(start => {
             return move$.pipe(
+                tap(() => {
+                    console.log(color$);
+                }),
+                ctx.strokeStyle = color$,
+                ctx.lineWidth = size$,
+                ctx.lineJoin = 'round',
+                ctx.lineCap = 'square',
+                ctx.beginPath(),
                 // tap(move => console.log(move)),
                 map(event => [event.layerX, event.layerY]),
+                takeUntil(leave$),
                 takeUntil(end$)
             )
         }),
@@ -90,22 +106,17 @@ const drag$ = start$
 //         })
 //     );
 
+
 const drawTool$ = drag$
     .pipe(
         map((store) => {
             const updateStore = {
                 positionX: store[0],
-                positionY : store[1]
+                positionY: store[1]
             };
             return updateStore;
         }),
         tap((store) => {
-            ctx.strokeStyle = $color.value;
-            ctx.lineWidth = $size.value;
-            ctx.lineJoin = 'round';
-            ctx.lineCap = 'square';
-
-            ctx.beginPath();
             ctx.moveTo(store.positionX, store.positionY);
             return store
         })
