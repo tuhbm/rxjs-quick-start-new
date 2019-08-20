@@ -1,79 +1,115 @@
-const {fromEvent, Subject, Observable } = rxjs;
-const {map, switchMap, debounceTime, share, distinctUntilChanged, tap, partition, retry, finalize} = rxjs.operators; //catchError, multicast, publish, refCount
-const {ajax} = rxjs.ajax;
+const $view = document.getElementById('carousel');
+const $container = $view.querySelector('.container');
+const PANEL_COUNT = $container.querySelectorAll('.panel').length;
+const SUPPORT_TOUCH = 'ontouchstart' in window;
+const EVENTS = {
+    start: SUPPORT_TOUCH ? 'touchstart' : 'mousedown',
+    move: SUPPORT_TOUCH ? 'touchmove' : 'mousemove',
+    end: SUPPORT_TOUCH ? 'touchend' : 'mouseup'
+};
+const THRESHOLD = 200; // drag - drop 임계치값
+const { fromEvent, merge } = rxjs;
+const { map, switchMap, takeUntil, mergeAll, take, first, startWith, withLatestFrom, tap, share, scan } = rxjs.operators;
 
-const $layer = document.getElementById("suggestLayer");
-const $loading = document.getElementById("loading");
-
-function showLoading() {
-    $loading.style.display = "block";
-}
-
-function hideLoading() {
-    $loading.style.display = "none";
-}
-
-function drawLayer(items) {
-    $layer.innerHTML = items
-        .map(user => {
-            return `<li class="user">
-        <img src="${user.avatar_url}" width="50px" width="50px"/>
-        <p><a href="${user.html_url}" target="_blank">${user.login}</a></p>
-      </li>`;
-        })
-        .join("");
-}
-
-
-const keyup$ = fromEvent(document.getElementById("search"), "keyup")
+function toPos(obs$) {
+    return obs$
     .pipe(
-        debounceTime(300),
-        map(event => event.target.value),
-        distinctUntilChanged(),
-        tap(v => console.log("from keyup$", v)),
-        // multicast(new Subject())
-        // publish(),
-        // refCount()
-        share()
+        map(v => SUPPORT_TOUCH ? v.changedTouches[0].pageX : v.pageX)
     );
+}
 
-let [user$, reset$] = keyup$
-    .pipe(
-        partition(query => query.trim().length > 0)
-    );
+function tanslateX(posX) {
+    $container.style.transform = `translate3d(${posX}px, 0, 0)`;
+}
 
-user$ = user$.pipe(
-    tap(showLoading),
-    switchMap(query => {
-        return ajax.getJSON(`https://api.github.com/search/users?q=${query}`);
-    }),
-    tap(hideLoading),
-    retry(2),
-    // finalize(hideLoading)
-    // catchError((e, orgObservable) => {
-    //     console.log("서버 에러가 발생하였으나 다시 호출하도록 처리", e.message);
-    //     return orgObservable;
-    // })
-    finalize(hideLoading),
-    tap(v => console.log("from user$", v))
+const start$ = fromEvent($view, EVENTS.start).pipe(toPos);
+const move$ = fromEvent($view, EVENTS.move).pipe(toPos);
+const end$ = fromEvent($view, EVENTS.end).pipe(toPos);
+const size$ = fromEvent(window, 'resize')
+.pipe(
+    startWith(0),
+    map(event => $view.clientWidth)
 );
 
-reset$
-    .pipe(
-        tap(v => ($layer.innerHTML = "")),
-        tap(v => console.log("from reset$", v))
-    ).subscribe();
+const drag$ = start$
+.pipe(
+    switchMap(start => {
+        return move$.pipe(
+            map(move => move - start),
+            takeUntil(end$)
+        )
+    }),
+    // tap(v => console.log('drag$', v)),
+    /**
+     * drag$이 두번씩 호출됨 => share 오퍼레이터 사용
+     * */
+    share(),
+    map(distance => ({distance}))
+);
 
-user$.subscribe({
-    next: v => drawLayer(v.items),
-    error: e => {
-        console.error(e);
-        alert(e.message);
-    }
+const drop$ = drag$
+.pipe(
+    // map(drag => end$.pipe(take(1)))
+    /**
+     * first 오퍼레이터를 사용하면 자동 구독해제
+     * */
+    
+    // map(drag => end$.pipe(first())),
+    // mergeAll()
+    /**
+     * map + mergeAll = mergeMap
+     * mergeMap + (자동 구독해제) = switchMap
+     */
+    // tap(v => console.log('drog$', v)),
+    switchMap(drag => {
+        return end$.pipe(
+            /**
+             * drag는 drag$가 전달하는 start$와 move$의 위치 값의 거리
+             * */
+            map(event => drag),
+            first()
+        )
+    }),
+    withLatestFrom(size$, (drag, size) => {
+        return {...drag, size}
+    })
+);
+
+// size$.subscribe(width => console.log('widow resize 후 width 값', width));
+// drop$.subscribe(array => console.log('drop', array));
+// drag$.subscribe(distance => console.log('start$와 move$의 차이값', distance));
+
+const carousel$ = merge(drag$, drop$)
+.pipe(
+    scan((store, {distance, size}) => {
+        const updateStore = {
+            from: -(store.index * store.size) + distance
+        };
+        
+        if(size === undefined) {
+            updateStore.to = updateStore.from
+        } else {
+            let tobeIndex = store.index;
+            if(Math.abs(distance) >= THRESHOLD) {
+                tobeIndex = distance < 0 ?
+                    Math.min(tobeIndex + 1, PANEL_COUNT - 1) :
+                    Math.max(tobeIndex - 1, 0);
+            }
+            updateStore.index = tobeIndex;
+            updateStore.to = -(tobeIndex * size);
+            updateStore.size = size;
+        }
+        
+        return {...store, ...updateStore};
+    }, {
+        from: 0,
+        to: 0,
+        index: 0,
+        size: 0
+    })
+);
+
+carousel$.subscribe(store => {
+    console.log('캐러셀 데이터', store);
+    tanslateX(store.to);
 });
-
-reset$.subscribe();
-
-// subject에서 user$와 reset$를 생성 후, subject가 keyup$을 구
-
-// keyup$.connect();
