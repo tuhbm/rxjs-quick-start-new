@@ -38,8 +38,14 @@ const start$ = fromEvent($canvas, EVENTS.start);
 const move$ = fromEvent($canvas, EVENTS.move);
 const end$ = fromEvent($canvas, EVENTS.end);
 const leave$ = fromEvent($canvas, EVENTS.leave);
-const color$ = fromEvent($color, EVENTS.start);
-const size$ = fromEvent($size, EVENTS.start);
+const color$ = fromEvent($color, 'change').pipe(
+    startWith('black'),
+    map(event => $color.value)
+);
+const size$ = fromEvent($size, 'change').pipe(
+    startWith('10'),
+    map(event => $size.value)
+);
 
 // const color = color$.subscribe(color => color.target.value);
 // const size = size$.subscribe(size => size.target.value);
@@ -54,17 +60,24 @@ const clear$ = fromEvent($clear, 'click');
 // end$.subscribe(e => console.log('end$', e));
 const drag$ = start$
     .pipe(
+        withLatestFrom(color$, size$,(start, color, size) => {
+            
+            return {
+                start: start,
+                color: color,
+                size: size
+            }
+        }),
+        tap((e) => {
+            ctx.strokeStyle = e.color;
+            ctx.lineWidth = e.size;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(e.start.positionX, e.start.positionY);
+        }),
         switchMap(start => {
             return move$.pipe(
-                tap(() => {
-                    console.log(color$);
-                }),
-                ctx.strokeStyle = color$,
-                ctx.lineWidth = size$,
-                ctx.lineJoin = 'round',
-                ctx.lineCap = 'square',
-                ctx.beginPath(),
-                // tap(move => console.log(move)),
                 map(event => [event.layerX, event.layerY]),
                 takeUntil(leave$),
                 takeUntil(end$)
@@ -115,10 +128,6 @@ const drawTool$ = drag$
                 positionY: store[1]
             };
             return updateStore;
-        }),
-        tap((store) => {
-            ctx.moveTo(store.positionX, store.positionY);
-            return store
         })
     );
 
